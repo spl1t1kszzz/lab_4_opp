@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cmath>
 #include <vector>
 #include <sstream>
 #include <iomanip>
@@ -70,7 +69,7 @@ public:
 
     friend std::ostream &operator<<(std::ostream &os, Grid obj) {
         std::stringstream ss;
-        ss << std::fixed << std::setprecision(12);
+        ss << std::fixed << std::setprecision(5);
         for (int i = 0; i < obj.z_size_; i++) {
             for (int j = 0; j < obj.y_size_; j++) {
                 for (int k = 0; k < obj.x_size_; k++) {
