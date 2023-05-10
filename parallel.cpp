@@ -44,7 +44,7 @@ private:
         return 6 - a * phi(coords);
     }
 
-    int get_row_index(int x, int y, int z) const {
+    int get_row_index_from_matrix_indices(int x, int y, int z) const {
         return x * this->y_size_ * this->z_size_ + z * this->y_size_ + y;
     }
 
@@ -67,41 +67,44 @@ public:
         if (this->layer_number_ == ROOT) {
             // заполняем верхнюю и нижнюю строку нижнего слоя
             for (int i = 0; i < this->x_size_; ++i) {
-                this->phi_[this->get_row_index(i, 0, 0)] = phi(this->get_coords_from_matrix_indices(i, 0, 0));
-                this->phi_[this->get_row_index(i, this->y_size_ - 1, 0)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(i, 0, 0)] = phi(
+                        this->get_coords_from_matrix_indices(i, 0, 0));
+                this->phi_[this->get_row_index_from_matrix_indices(i, this->y_size_ - 1, 0)] = phi(
                         this->get_coords_from_matrix_indices(i, this->y_size_ - 1, 0));
             }
             // заполняем левую и правую строку нижнего слоя
             for (int j = 0; j < this->y_size_; ++j) {
-                this->phi_[this->get_row_index(0, j, 0)] = phi(this->get_coords_from_matrix_indices(0, j, 0));
-                this->phi_[this->get_row_index(this->x_size_ - 1, j, 0)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(0, j, 0)] = phi(
+                        this->get_coords_from_matrix_indices(0, j, 0));
+                this->phi_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, j, 0)] = phi(
                         this->get_coords_from_matrix_indices(this->x_size_ - 1, j, 0));
             }
         }
         if (this->layer_number_ == layers_count_ - 1) {
             // заполняем верхнюю и нижнюю строку верхнего слоя
             for (int i = 0; i < this->x_size_; ++i) {
-                this->phi_[this->get_row_index(i, 0, this->z_size_ - 1)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(i, 0, this->z_size_ - 1)] = phi(
                         this->get_coords_from_matrix_indices(i, 0, this->z_size_ - 1));
-                this->phi_[this->get_row_index(i, this->y_size_ - 1, this->z_size_ - 1)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(i, this->y_size_ - 1, this->z_size_ - 1)] = phi(
                         this->get_coords_from_matrix_indices(i, this->y_size_ - 1, this->z_size_ - 1));
             }
             // заполняем левую и правую строку верхнего слоя
             for (int j = 0; j < this->y_size_; ++j) {
-                this->phi_[this->get_row_index(0, j, this->z_size_ - 1)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(0, j, this->z_size_ - 1)] = phi(
                         this->get_coords_from_matrix_indices(0, j, this->z_size_ - 1));
-                this->phi_[this->get_row_index(this->x_size_ - 1, j, this->z_size_ - 1)] = phi(
+                this->phi_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, j, this->z_size_ - 1)] = phi(
                         this->get_coords_from_matrix_indices(this->x_size_ - 1, j, this->z_size_ - 1));
             }
         }
         // заполняем углы
         for (int k = 0; k < this->z_size_; ++k) {
-            this->phi_[this->get_row_index(0, 0, k)] = phi(this->get_coords_from_matrix_indices(0, 0, k));
-            this->phi_[this->get_row_index(0, this->y_size_ - 1, k)] = phi(
+            this->phi_[this->get_row_index_from_matrix_indices(0, 0, k)] = phi(
+                    this->get_coords_from_matrix_indices(0, 0, k));
+            this->phi_[this->get_row_index_from_matrix_indices(0, this->y_size_ - 1, k)] = phi(
                     this->get_coords_from_matrix_indices(0, this->y_size_ - 1, k));
-            this->phi_[this->get_row_index(this->x_size_ - 1, 0, k)] = phi(
+            this->phi_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, 0, k)] = phi(
                     this->get_coords_from_matrix_indices(this->x_size_ - 1, 0, k));
-            this->phi_[this->get_row_index(this->x_size_ - 1, this->y_size_ - 1, k)] = phi(
+            this->phi_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, this->y_size_ - 1, k)] = phi(
                     this->get_coords_from_matrix_indices(this->x_size_ - 1, this->y_size_ - 1, k));
         }
 
@@ -124,7 +127,7 @@ public:
                     ss << '(' << grid.get_coords_from_matrix_indices(i, j, k)[0] << ","
                        << grid.get_coords_from_matrix_indices(i, j, k)[1]
                        << ", " << grid.get_coords_from_matrix_indices(i, j, k)[2] << ") "
-                       << grid.phi_[grid.get_row_index(i, j, k)];
+                       << grid.phi_[grid.get_row_index_from_matrix_indices(i, j, k)];
                     os << ss.str() << ' ';
                     ss.str("");
                 }
