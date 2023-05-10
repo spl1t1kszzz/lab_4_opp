@@ -3,4 +3,5 @@ project(lab_4_opp)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(lab_4_opp main.cpp)
+add_executable(lab_4_opp sequential.cpp)
+

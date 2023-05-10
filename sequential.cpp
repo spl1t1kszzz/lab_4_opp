@@ -4,6 +4,9 @@
 #include <limits>
 #include <iomanip>
 
+constexpr double x_0 = -1.0f;
+constexpr double y_0 = -1.0f;
+constexpr double z_0 = -1.0f;
 constexpr double Dx = 2.0f;
 constexpr double Dy = 2.0f;
 constexpr double Dz = 2.0f;
@@ -40,7 +43,7 @@ public:
     }
 
 
-    static double phi(double x, double y, double z) {
+    double phi(double x, double y, double z) {
         return (x * x + y * y + z * z);
     }
 
@@ -54,9 +57,9 @@ public:
     }
 
     void set_borders_phi() {
-        for (int i = 0; i < this->z_size_; i++) {
+        for (int k = 0; k < this->z_size_; k++) {
             for (int j = 0; j < this->y_size_; j++) {
-                for (int k = 0; k < this->x_size_; k++) {
+                for (int i = 0; i < this->x_size_; i++) {
                     if (i == 0 || i == this->z_size_ - 1 || j == 0 || j == this->y_size_ - 1 || k == 0 ||
                         k == this->x_size_ - 1) {
                         if ((i == 0 || i == this->z_size_ - 1) && (j == 0 || j == this->y_size_ - 1) ||
@@ -80,12 +83,12 @@ public:
 
     void iteration() {
         this->delta_ = 0.0f;
-        for (int i = 0; i < this->z_size_; ++i) {
+        for (int k = 0; k < this->z_size_; ++k) {
             for (int j = 0; j < this->y_size_; ++j) {
-                for (int k = 0; k < this->x_size_; ++k) {
-                    this->phi_plus_one_[this->get_index_from_coords(k, j, i)] = this->calculate_phi_plus_one(k, j, i);
-                    double current_delta = this->phi_plus_one_[this->get_index_from_coords(k, j, i)] -
-                                           this->phi_[this->get_index_from_coords(k, j, i)];
+                for (int i = 0; i < this->x_size_; ++i) {
+                    this->phi_plus_one_[this->get_index_from_coords(i, j, k)] = this->calculate_phi_plus_one(i, j, k);
+                    double current_delta = this->phi_plus_one_[this->get_index_from_coords(i, j, k)] -
+                                           this->phi_[this->get_index_from_coords(i, j, k)];
                     this->delta_ = std::max(this->delta_, current_delta);
                 }
             }
@@ -103,9 +106,9 @@ public:
     friend std::ostream &operator<<(std::ostream &os, Grid obj) {
         std::stringstream ss;
         ss << std::fixed << std::setprecision(5);
-        for (int i = 0; i < obj.z_size_; i++) {
+        for (int k = 0; k < obj.z_size_; k++) {
             for (int j = 0; j < obj.y_size_; j++) {
-                for (int k = 0; k < obj.x_size_; k++) {
+                for (int i = 0; i < obj.x_size_; i++) {
                     ss << '(' << i << j << k << ") " << obj.phi_[obj.get_index_from_coords(i, j, k)];
                     os << ss.str() << ' ';
                     ss.str("");
@@ -131,8 +134,8 @@ public:
 int main() {
     Grid grid(Dx / h_x, Dy / h_y, Dz / h_z);
     grid.set_borders_phi();
-    grid.run();
-    std::cout << grid;
+//    grid.run();
+    std::cout << 1 + 1 + std::pow(-0.333, 2);
     return 0;
 }
 
