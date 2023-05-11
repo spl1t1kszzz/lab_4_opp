@@ -264,7 +264,7 @@ public:
         }
     }
 
-    bool check_result() {
+    void check_result() {
         double this_delta = 0.0f;
         double current_delta;
         for (int k = 0; k < this->z_size_; ++k) {
@@ -280,7 +280,6 @@ public:
         if (this->layer_number_ == ROOT) {
             cout << global_delta_ << endl;
         }
-        return global_delta_ > epsilon;
     }
 
 
@@ -320,8 +319,11 @@ int main(int argc, char **argv) {
     assert(N_z % world_size == 0);
     Grid grid(N_x, N_y, N_z / world_size, world_rank, world_size);
     grid.set_borders_phi();
-    while (grid.check_result()) {
+    for (int i = 0; i < 5; ++i) {
         grid.iteration();
+        if (world_rank == 0) {
+            cout << grid.phi_.data() << ' ' << grid.phi_plus_one_.data() << endl;
+        }
     }
     if (world_rank == 0) {
         cout << grid;
