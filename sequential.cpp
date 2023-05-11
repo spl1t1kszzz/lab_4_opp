@@ -25,7 +25,6 @@ class Grid {
 private:
     std::vector<double> phi_;
     std::vector<double> phi_plus_one_;
-    std::vector<double> &current_phi_ = phi_;
     int volume_;
     int x_size_;
     int y_size_;
@@ -43,7 +42,7 @@ public:
     }
 
 
-    double phi(double x, double y, double z) {
+    static double phi(double x, double y, double z) {
         return (x * x + y * y + z * z);
     }
 
@@ -65,7 +64,7 @@ public:
                         if ((i == 0 || i == this->z_size_ - 1) && (j == 0 || j == this->y_size_ - 1) ||
                             (i == 0 || i == this->z_size_ - 1) && (k == 0 || k == this->x_size_ - 1) ||
                             (j == 0 || j == this->z_size_ - 1) && (k == 0 || k == this->x_size_ - 1)) {
-                            this->current_phi_[this->get_index_from_coords(i, j, k)] = this->phi(i, j, k);
+                            this->phi_[this->get_index_from_coords(i, j, k)] = this->phi(i, j, k);
                         }
                     }
                 }
@@ -134,8 +133,8 @@ public:
 int main() {
     Grid grid(Dx / h_x, Dy / h_y, Dz / h_z);
     grid.set_borders_phi();
-//    grid.run();
-    std::cout << 1 + 1 + std::pow(-0.333, 2);
+    grid.run();
+    std::cout << grid;
     return 0;
 }
 
