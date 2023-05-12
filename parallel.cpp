@@ -172,7 +172,7 @@ public:
                 MPI_Wait(&lower_border_send_request, MPI_STATUS_IGNORE);
             } else if (this->layer_number_ == layers_count_ - 1) {
                 MPI_Wait(&upper_border_send_request, MPI_STATUS_IGNORE);
-            } else if (layers_count_ != 2){
+            } else if (layers_count_ != 2) {
                 MPI_Wait(&lower_border_send_request, MPI_STATUS_IGNORE);
                 MPI_Wait(&upper_border_send_request, MPI_STATUS_IGNORE);
             }
@@ -184,7 +184,7 @@ public:
         MPI_Allreduce(&this->delta_, &global_delta_, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         MPI_Bcast(&global_delta_, 1, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
         // новая фи становится старой
-        swap(this->phi_, this->phi_plus_one_);
+        std::swap(this->phi_, this->phi_plus_one_);
     }
 
     void update_delta() {
@@ -195,6 +195,7 @@ public:
                             this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)] -
                             this->phi_[this->get_row_index_from_matrix_indices(i, j, k)]);
                     this->delta_ = std::max(this->delta_, current_delta);
+                   // cout << this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)] << ' ' << this->phi_[this->get_row_index_from_matrix_indices(i, j, k)] << endl;
                 }
             }
         }
@@ -234,7 +235,7 @@ public:
 
     void center_iteration() {
         // идем по каждому слою отступая от краёв на один элемент и вычисляем фи
-        for (int k = 0; k < this->z_size_; ++k) {
+        for (int k = 1; k < this->z_size_ - 1; ++k) {
             for (int j = 1; j < this->y_size_ - 1; ++j) {
                 for (int i = 1; i < this->x_size_ - 1; ++i) {
                     this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j,
@@ -246,20 +247,14 @@ public:
     }
 
     void borders_iteration() {
-        for (int k = 0; k < this->z_size_; ++k) {
-            // заполняем верхнюю и нижнюю строку слоя
-            for (int i = 0; i < this->x_size_; ++i) {
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, 0, k)] =
-                        this->calculate_phi_plus_one(i, 0, k);
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, this->y_size_ - 1, k)] =
-                        this->calculate_phi_plus_one(i, this->y_size_ - 1, k);
+        for (int j = 1; j < this->y_size_ - 1; ++j) {
+            for (int i = 1; i < this->x_size_ - 1; ++i) {
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i,j,0)] = this->calculate_phi_plus_one(i,j,0);
             }
-            // заполняем левую и правую строку слоя
-            for (int j = 0; j < this->y_size_; ++j) {
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(0, j, k)] =
-                        this->calculate_phi_plus_one(0, j, k);
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, j, k)] =
-                        this->calculate_phi_plus_one(this->x_size_ - 1, j, k);
+        }
+        for (int j = 1; j < this->y_size_ - 1; ++j) {
+            for (int i = 1; i < this->x_size_ - 1; ++i) {
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i,j,this->z_size_ - 1)] = this->calculate_phi_plus_one(i,j,this->z_size_ - 1);
             }
         }
     }
@@ -285,7 +280,7 @@ public:
 
     friend std::ostream &operator<<(std::ostream &os, const Grid &grid) {
         std::stringstream ss;
-        ss << std::fixed << std::setprecision(5);
+        ss << std::fixed << std::setprecision(6);
         for (int k = 0; k < grid.z_size_; k++) {
             os << "Layer #" << k + 1 << endl;
             for (int j = 0; j < grid.y_size_; j++) {
@@ -319,11 +314,8 @@ int main(int argc, char **argv) {
     assert(N_z % world_size == 0);
     Grid grid(N_x, N_y, N_z / world_size, world_rank, world_size);
     grid.set_borders_phi();
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 1002; ++i) {
         grid.iteration();
-        if (world_rank == 0) {
-            cout << grid.phi_.data() << ' ' << grid.phi_plus_one_.data() << endl;
-        }
     }
     if (world_rank == 0) {
         cout << grid;
