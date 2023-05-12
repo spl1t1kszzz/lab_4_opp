@@ -83,13 +83,27 @@ public:
                         this->get_coords_from_matrix_indices(i, 0, k));
                 this->phi_[this->get_row_index_from_matrix_indices(i, this->y_size_ - 1, k)] = phi(
                         this->get_coords_from_matrix_indices(i, this->y_size_ - 1, k));
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, 0,
+                                                                            k)] = this->phi_[this->get_row_index_from_matrix_indices(
+                        i, 0, k)];
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, this->y_size_ - 1,
+                                                                            k)] = this->phi_[this->get_row_index_from_matrix_indices(
+                        i, this->y_size_ - 1, k)];
+
             }
             // заполняем левую и правую строку слоя
             for (int j = 0; j < this->y_size_; ++j) {
                 this->phi_[this->get_row_index_from_matrix_indices(0, j, k)] = phi(
                         this->get_coords_from_matrix_indices(0, j, k));
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(0, j,
+                                                                            k)] = this->phi_[this->get_row_index_from_matrix_indices(
+                        0, j, k)];
                 this->phi_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, j, k)] = phi(
                         this->get_coords_from_matrix_indices(this->x_size_ - 1, j, k));
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(this->x_size_ - 1, j,
+                                                                            k)] = this->phi_[this->get_row_index_from_matrix_indices(
+                        this->x_size_ - 1, j, k)];
+
             }
         }
     }
@@ -184,7 +198,14 @@ public:
         MPI_Allreduce(&this->delta_, &global_delta_, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         MPI_Bcast(&global_delta_, 1, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
         // новая фи становится старой
-        std::swap(this->phi_, this->phi_plus_one_);
+        for (int k = 0; k < this->z_size_; ++k) {
+            for (int j = 1; j < this->y_size_ - 1; ++j) {
+                for (int i = 1; i < this->x_size_ - 1; ++i) {
+                    this->phi_[this->get_row_index_from_matrix_indices(i, j, k)] =
+                            this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)];
+                }
+            }
+        }
     }
 
     void update_delta() {
@@ -195,7 +216,6 @@ public:
                             this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)] -
                             this->phi_[this->get_row_index_from_matrix_indices(i, j, k)]);
                     this->delta_ = std::max(this->delta_, current_delta);
-                   // cout << this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)] << ' ' << this->phi_[this->get_row_index_from_matrix_indices(i, j, k)] << endl;
                 }
             }
         }
@@ -249,12 +269,18 @@ public:
     void borders_iteration() {
         for (int j = 1; j < this->y_size_ - 1; ++j) {
             for (int i = 1; i < this->x_size_ - 1; ++i) {
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i,j,0)] = this->calculate_phi_plus_one(i,j,0);
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, 0)] = this->calculate_phi_plus_one(i,
+                                                                                                                     j,
+                                                                                                                     0);
             }
         }
         for (int j = 1; j < this->y_size_ - 1; ++j) {
             for (int i = 1; i < this->x_size_ - 1; ++i) {
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i,j,this->z_size_ - 1)] = this->calculate_phi_plus_one(i,j,this->z_size_ - 1);
+                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, this->z_size_ -
+                                                                                  1)] = this->calculate_phi_plus_one(i,
+                                                                                                                     j,
+                                                                                                                     this->z_size_ -
+                                                                                                                     1);
             }
         }
     }
@@ -314,7 +340,7 @@ int main(int argc, char **argv) {
     assert(N_z % world_size == 0);
     Grid grid(N_x, N_y, N_z / world_size, world_rank, world_size);
     grid.set_borders_phi();
-    for (int i = 0; i < 1002; ++i) {
+    for (int i = 0; i < 20000; ++i) {
         grid.iteration();
     }
     if (world_rank == 0) {
