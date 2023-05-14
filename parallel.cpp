@@ -38,14 +38,14 @@ public:
     int layer_number_;
     int layers_count_;
     double delta_ = 0.0f;
-    double global_delta_ = std::numeric_limits<double>::infinity();;
+    double global_delta_ = std::numeric_limits<double>::infinity();
 
     static double phi(vector<double> coords) {
         return coords[0] * coords[0] + coords[1] * coords[1] + coords[2] * coords[2];
     }
 
-    static double rho(vector<double> coords) {
-        return 6 - a * phi(std::move(coords));
+    double rho(int i, int j, int k) {
+        return 6 - a * this->get_current_phi(i, j, k);
     }
 
 
@@ -58,7 +58,6 @@ public:
     }
 
     Grid(int x_size, int y_size, int z_size, int layer_number, int layers_count) {
-
         this->x_size_ = x_size;
         this->y_size_ = y_size;
         this->z_size_ = z_size;
@@ -195,17 +194,11 @@ public:
         this->borders_iteration();
         // считаем ∆
         this->update_delta();
+        global_delta_ = 0.0f;
         MPI_Allreduce(&this->delta_, &global_delta_, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         MPI_Bcast(&global_delta_, 1, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
         // новая фи становится старой
-        for (int k = 0; k < this->z_size_; ++k) {
-            for (int j = 1; j < this->y_size_ - 1; ++j) {
-                for (int i = 1; i < this->x_size_ - 1; ++i) {
-                    this->phi_[this->get_row_index_from_matrix_indices(i, j, k)] =
-                            this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)];
-                }
-            }
-        }
+        std::swap(this->phi_, this->phi_plus_one_);
     }
 
     void update_delta() {
@@ -219,13 +212,14 @@ public:
                 }
             }
         }
+
     }
 
     double calculate_phi_plus_one(int i, int j, int k) {
         double tmp = (this->get_current_phi(i + 1, j, k) + this->get_current_phi(i - 1, j, k)) / (h_x * h_x) +
                      (this->get_current_phi(i, j + 1, k) + this->get_current_phi(i, j - 1, k)) / (h_y * h_y) +
                      (this->get_current_phi(i, j, k + 1) + this->get_current_phi(i, j, k - 1)) / (h_z * h_z) -
-                     rho(this->get_coords_from_matrix_indices(i, j, k));
+                     rho(i, j, k);
         return alpha * tmp;
     }
 
@@ -306,7 +300,7 @@ public:
 
     friend std::ostream &operator<<(std::ostream &os, const Grid &grid) {
         std::stringstream ss;
-        ss << std::fixed << std::setprecision(6);
+        ss << std::fixed << std::setprecision(5);
         for (int k = 0; k < grid.z_size_; k++) {
             os << "Layer #" << k + 1 << endl;
             for (int j = 0; j < grid.y_size_; j++) {
@@ -325,7 +319,7 @@ public:
         return os;
     }
 
-    double get_delta() {
+    double get_delta() const {
         return global_delta_;
     }
 
@@ -340,11 +334,12 @@ int main(int argc, char **argv) {
     assert(N_z % world_size == 0);
     Grid grid(N_x, N_y, N_z / world_size, world_rank, world_size);
     grid.set_borders_phi();
-    for (int i = 0; i < 20000; ++i) {
+    while (grid.get_delta() > epsilon) {
         grid.iteration();
+//        cout << grid.get_delta() << endl;
     }
     if (world_rank == 0) {
-        cout << grid;
+    cout << grid;
     }
     grid.check_result();
     MPI_Finalize();
