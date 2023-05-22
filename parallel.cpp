@@ -27,7 +27,7 @@ constexpr double alpha = 1.0f / ((2.0f / (h_x * h_x)) + (2.0f / (h_y * h_y)) + (
 using namespace std;
 
 class Grid {
-public:
+private:
     vector<double> phi_;
     vector<double> phi_plus_one_;
     int volume_;
@@ -346,7 +346,7 @@ int main(int argc, char **argv) {
     if (world_rank == 0) {
         cout << end - start << endl;
     }
-    assert(grid.check_result());
+    assert(grid.check_result() < 1e-4);
     MPI_Finalize();
     return 0;
 }
