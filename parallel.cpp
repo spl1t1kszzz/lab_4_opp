@@ -13,22 +13,21 @@ constexpr double z_0 = -1.0f;
 constexpr double Dx = 2.0f;
 constexpr double Dy = 2.0f;
 constexpr double Dz = 2.0f;
-constexpr int N_x = 16;
-constexpr int N_y = 16;
-constexpr int N_z = 16;
+constexpr int N_x = 36;
+constexpr int N_y = 36;
+constexpr int N_z = 36;
 constexpr double a = 100000.0;
 constexpr double epsilon = 1e-8;
 constexpr double h_x = Dx / (N_x - 1);
 constexpr double h_y = Dy / (N_y - 1);
 constexpr double h_z = Dz / (N_z - 1);
 constexpr double alpha = 1.0f / ((2.0f / (h_x * h_x)) + (2.0f / (h_y * h_y)) + (2.0f / (h_z * h_z)) + a);
-constexpr int upper_border_send_tag = 1;
 
 
 using namespace std;
 
 class Grid {
-private:
+public:
     vector<double> phi_;
     vector<double> phi_plus_one_;
     int volume_;
@@ -37,7 +36,6 @@ private:
     int z_size_;
     int layer_number_;
     int layers_count_;
-    double delta_ = std::numeric_limits<double>::infinity();
     double global_delta_ = std::numeric_limits<double>::infinity();
     vector<double> upper_neighbor_;
     vector<double> lower_neighbor_;
@@ -153,80 +151,87 @@ public:
     }
 
     void iteration() {
-        this->delta_ = 0.0f;
-        MPI_Request upper_border_send_request, lower_border_send_request;
-        if (layers_count_ != 1) {
-            if (this->layer_number_ == ROOT) {
-                // нижний слой должен отправить только верхнюю границу
-                MPI_Isend(this->get_upper_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE, ROOT + 1,
-                          upper_border_send_tag, MPI_COMM_WORLD, &upper_border_send_request);
-            } else if (this->layer_number_ == layers_count_ - 1) {
-                // верхний слой должен отправить только нижнюю границу
-                MPI_Isend(this->get_lower_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ - 1, 1, MPI_COMM_WORLD, &lower_border_send_request);
-            } else if (layers_count_ != 2) {
-                // все остальные отправляют и верхнюю и нижнюю границу
-                MPI_Isend(this->get_upper_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ + 1,
-                          1, MPI_COMM_WORLD, &upper_border_send_request);
-                MPI_Isend(this->get_lower_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ - 1, 1, MPI_COMM_WORLD, &lower_border_send_request);
-            }
+        double global_delta = std::numeric_limits<double>::infinity();
+        while (global_delta >= epsilon) {
+            MPI_Request upper_border_send_request, lower_border_send_request, upper_border_recv_request, lower_border_recv_request;
+            if (layers_count_ != 1) {
+                if (this->layer_number_ == ROOT) {
+                    // нижний слой должен отправить только верхнюю границу
+                    MPI_Isend(this->get_upper_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE, ROOT + 1,
+                              1, MPI_COMM_WORLD, &upper_border_send_request);
+                } else if (this->layer_number_ == (layers_count_ - 1)) {
+                    // верхний слой должен отправить только нижнюю границу
+                    MPI_Isend(this->get_lower_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ - 1, 1, MPI_COMM_WORLD, &lower_border_send_request);
+                } else {
+                    // все остальные отправляют и верхнюю и нижнюю границу
+                    MPI_Isend(this->get_upper_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ + 1,
+                              1, MPI_COMM_WORLD, &upper_border_send_request);
+                    MPI_Isend(this->get_lower_border().data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ - 1, 1, MPI_COMM_WORLD, &lower_border_send_request);
+                }
 
-            if (this->layer_number_ == ROOT) {
-                // нижний слой должен получить только верхнего соседа
-                MPI_Irecv(this->upper_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE, ROOT + 1,
-                          1, MPI_COMM_WORLD, &lower_border_send_request);
-            } else if (this->layer_number_ == layers_count_ - 1) {
-                // верхний слой должен получить только нижнего соседа
-                MPI_Irecv(this->lower_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ - 1,
-                          1, MPI_COMM_WORLD, &upper_border_send_request);
-            } else if (layers_count_ != 2) {
-                // все остальные получают обоих соседей
-                MPI_Irecv(this->upper_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ + 1,
-                          1, MPI_COMM_WORLD, &lower_border_send_request);
-                MPI_Irecv(this->lower_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
-                          this->layer_number_ - 1,
-                          1, MPI_COMM_WORLD, &upper_border_send_request);
-            }
-        }
-        // так как вычисление в центре не зависит от соседей, то итерируемся по центру
-        this->center_iteration();
-        // а вот вычисление на границе зависит от соседей, поэтому нужно дождаться получения этих соседей
-        if (layers_count_ != 1) {
-            if (layer_number_ == ROOT) {
-                MPI_Wait(&lower_border_send_request, MPI_STATUS_IGNORE);
-            } else if (this->layer_number_ == layers_count_ - 1) {
-                MPI_Wait(&upper_border_send_request, MPI_STATUS_IGNORE);
-            } else if (layers_count_ != 2) {
-                MPI_Wait(&lower_border_send_request, MPI_STATUS_IGNORE);
-                MPI_Wait(&upper_border_send_request, MPI_STATUS_IGNORE);
-            }
-        }
-        // дождались, итерируемся по границе
-        this->borders_iteration();
-        // считаем ∆
-        this->update_delta();
-        MPI_Allreduce(&this->delta_, &global_delta_, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Bcast(&global_delta_, 1, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-        // новая фи становится старой
-        std::swap(this->phi_, this->phi_plus_one_);
-    }
-
-    void update_delta() {
-        for (int k = 0; k < this->z_size_; ++k) {
-            for (int j = 0; j < this->y_size_; ++j) {
-                for (int i = 0; i < this->x_size_; ++i) {
-                    double current_delta = std::abs(
-                            this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, k)] -
-                            this->phi_[this->get_row_index_from_matrix_indices(i, j, k)]);
-                    this->delta_ = std::max(this->delta_, current_delta);
+                if (this->layer_number_ == ROOT) {
+                    // нижний слой должен получить только верхнего соседа
+                    MPI_Irecv(this->upper_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE, ROOT + 1,
+                              1, MPI_COMM_WORLD, &upper_border_recv_request);
+                } else if (this->layer_number_ == (layers_count_ - 1)) {
+                    // верхний слой должен получить только нижнего соседа
+                    MPI_Irecv(this->lower_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ - 1,
+                              1, MPI_COMM_WORLD, &lower_border_recv_request);
+                } else {
+                    // все остальные получают обоих соседей
+                    MPI_Irecv(this->upper_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ + 1,
+                              1, MPI_COMM_WORLD, &upper_border_recv_request);
+                    MPI_Irecv(this->lower_neighbor_.data(), this->x_size_ * this->y_size_, MPI_DOUBLE,
+                              this->layer_number_ - 1,
+                              1, MPI_COMM_WORLD, &lower_border_recv_request);
                 }
             }
-        }
+            // так как вычисление в центре не зависит от соседей, то итерируемся по центру
+            this->center_iteration();
+            // а вот вычисление на границе зависит от соседей, поэтому нужно дождаться получения этих соседей
+            if (layers_count_ > 1) {
+                if (layer_number_ == ROOT) {
+                    MPI_Wait(&upper_border_recv_request, MPI_STATUS_IGNORE);
+                } else if (layer_number_ == (layers_count_ - 1)) {
+                    MPI_Wait(&lower_border_recv_request, MPI_STATUS_IGNORE);
+                } else {
+                    MPI_Wait(&lower_border_recv_request, MPI_STATUS_IGNORE);
+                    MPI_Wait(&upper_border_recv_request, MPI_STATUS_IGNORE);
+                }
+            }
+            // дождались, итерируемся по границе
+            this->borders_iteration();
+            // считаем ∆
+            double local_delta = calculate_local_delta();
 
+            // собираем максимальное значение delta в главном процессе
+            global_delta = calculate_global_delta(local_delta);
+
+            cout << layer_number_ << ": " << global_delta << endl;
+
+            // новая фи становится старой
+            std::swap(this->phi_, this->phi_plus_one_);
+        }
+    }
+
+    double calculate_local_delta() {
+        double local_delta = 0.0;
+        for (int i = 0; i < volume_; ++i) {
+            double current_delta = std::fabs(phi_plus_one_[i] - phi_[i]);
+            local_delta = std::max(local_delta, current_delta);
+        }
+        return local_delta;
+    }
+
+    static double calculate_global_delta(double local_delta) {
+        double global_delta;
+        MPI_Allreduce(&local_delta, &global_delta, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        return global_delta;
     }
 
     double calculate_phi_plus_one(int i, int j, int k) {
@@ -245,18 +250,6 @@ public:
     }
 
     double get_current_phi(int i, int j, int k) {
-        // вылезли влево или вправо за слой
-        if ((i < 0 || j < 0 || i >= this->x_size_ || j >= this->y_size_) && k >= 0 && k < this->z_size_) {
-            return phi(this->get_coords_from_matrix_indices(i, j, k));
-        }
-        // вылезли вниз из нижнего слоя
-        if (k < 0 && this->layer_number_ == ROOT) {
-            return phi(this->get_coords_from_matrix_indices(i, j, k));
-        }
-        // вылезли вверх из верхнего слоя
-        if (k >= this->z_size_ && this->layer_number_ == layers_count_ - 1) {
-            return phi(this->get_coords_from_matrix_indices(i, j, k));
-        }
         // вылезли вниз из какого-то внутреннего слоя
         if (k < 0) {
             return this->lower_neighbor_[i * this->y_size_ + j];
@@ -284,14 +277,14 @@ public:
     void borders_iteration() {
         for (int j = 1; j < this->y_size_ - 1; ++j) {
             for (int i = 1; i < this->x_size_ - 1; ++i) {
-                double var = this->calculate_phi_plus_one(i, j, 0);
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, 0)] = var;
-            }
-        }
-        for (int j = 1; j < this->y_size_ - 1; ++j) {
-            for (int i = 1; i < this->x_size_ - 1; ++i) {
-                double var = this->calculate_phi_plus_one(i, j, this->z_size_ - 1);
-                this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, this->z_size_ - 1)] = var;
+                if (layer_number_ != ROOT)
+                    this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, 0)] = calculate_phi_plus_one(i, j,
+                                                                                                                   0);
+                if (layer_number_ != layers_count_ - 1)
+                    this->phi_plus_one_[this->get_row_index_from_matrix_indices(i, j, this->z_size_ -
+                                                                                      1)] = calculate_phi_plus_one(i, j,
+                                                                                                                   this->z_size_ -
+                                                                                                                   1);
             }
         }
     }
@@ -319,11 +312,11 @@ public:
             os << "Layer #" << k + 1 << endl;
             for (int j = 0; j < grid.y_size_; j++) {
                 for (int i = 0; i < grid.x_size_; i++) {
-                    ss << std::fixed << std::setprecision(10);
+                    ss << std::fixed << std::setprecision(6);
                     ss << '(' << grid.get_coords_from_matrix_indices(i, j, k)[0] << ","
                        << grid.get_coords_from_matrix_indices(i, j, k)[1]
                        << ", " << grid.get_coords_from_matrix_indices(i, j, k)[2] << ") " <<
-                       std::fixed << std::setprecision(10) <<
+                       std::fixed << std::setprecision(6) <<
                        grid.phi_[grid.get_row_index_from_matrix_indices(i, j, k)];
                     os << ss.str() << ' ';
                     ss.str("");
@@ -335,9 +328,6 @@ public:
         return os;
     }
 
-    double get_delta() const {
-        return global_delta_;
-    }
 
 };
 
@@ -350,17 +340,13 @@ int main(int argc, char **argv) {
     assert(N_z % world_size == 0);
     Grid grid(N_x, N_y, N_z / world_size, world_rank, world_size);
     grid.set_borders_phi();
-    double delta = std::numeric_limits<double>::infinity();
-    double current_delta;
-    while (delta >= epsilon) {
-        grid.iteration();
-        current_delta = grid.get_delta();
-        MPI_Allreduce(&current_delta, &delta, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    double start = MPI_Wtime();
+    grid.iteration();
+    double end = MPI_Wtime();
+    if (world_rank == 0) {
+        cout << end - start << endl;
     }
-    assert(grid.check_result() < epsilon);
-    if (world_rank != 0) {
-        cout << grid;
-    }
+    assert(grid.check_result());
     MPI_Finalize();
     return 0;
 }
